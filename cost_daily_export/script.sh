@@ -1,0 +1,62 @@
+#!/bin/bash
+set -e
+set -u
+
+REDSHIFT_HOST=<REDSHIFT_HOST>
+REDSHIFT_PORT=<REDSHIFT_PORT>
+
+REDSHIFT_DATABASE=<REDSHIFT_DATABASE>
+
+REDSHIFT_USER=<REDSHIFT_USER>
+REDSHIFT_TABLE_NAME=<REDSHIFT_TABLE_NAME>
+REDSHIFT_PASSWORD=<REDSHIFT_PASSWORD>
+
+S3_BUCKET=<S3_BUCKET>
+
+S3PATH=s3://$S3_BUCKET/cost_data # {bucket-name}/{optional-prefix}{distribution-ID}
+
+AWS_ACCESS_KEY_ID=<AWS_ACCESS_KEY_ID>
+AWS_SECRET_ACCESS_KEY=<AWS_SECRET_ACCESS_KEY>
+
+PATH_TO_COST_TRANSACTIONS_FOLDER="`pwd`/cost_transactions"
+CSV_IMPORT_DIR=$PATH_TO_COST_TRANSACTIONS_FOLDER"/csv"
+
+RUN_TOOL_CMD="java -jar tc-informix-data-export-0.1-jar-with-dependencies.jar config.properties"
+
+echo "Emptying output folder $CSV_IMPORT_DIR"
+rm -rf "$CSV_IMPORT_DIR"/*
+
+echo "Navigating to $PATH_TO_COST_TRANSACTIONS_FOLDER"
+cd "$PATH_TO_COST_TRANSACTIONS_FOLDER"
+echo "Running Tool '$RUN_TOOL_CMD'"
+echo "`$RUN_TOOL_CMD`"
+
+echo "Copying files to S3"
+aws s3 cp "$CSV_IMPORT_DIR" $S3PATH --recursive --include "*.csv"
+
+echo "S3 Done";
+# Secure temp files
+export PGPASSFILE=$(mktemp /tmp/pass.XXXXXX)
+cmds=$(mktemp /tmp/cmds.XXXXXX)
+
+cat >$PGPASSFILE << EOF
+$REDSHIFT_HOST:$REDSHIFT_PORT:$REDSHIFT_DATABASE:$REDSHIFT_USER:$REDSHIFT_PASSWORD
+EOF
+
+cat >$cmds << EOF
+truncate table $REDSHIFT_TABLE_NAME;
+COPY $REDSHIFT_TABLE_NAME
+FROM '$S3PATH/'
+CREDENTIALS 'aws_access_key_id=$AWS_ACCESS_KEY_ID;aws_secret_access_key=$AWS_SECRET_ACCESS_KEY'
+DELIMITER '~'
+timeformat 'auto'
+ACCEPTANYDATE
+EMPTYASNULL
+REMOVEQUOTES
+TRUNCATECOLUMNS
+TRIMBLANKS
+IGNOREHEADER AS 1
+NULL AS '(null)';
+EOF
+
+psql -d $REDSHIFT_DATABASE -h $REDSHIFT_HOST -p $REDSHIFT_PORT -U $REDSHIFT_USER -w -f $cmds
