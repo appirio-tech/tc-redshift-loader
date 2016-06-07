@@ -7,9 +7,13 @@ JDK 8
 ---------------------
 Build and Run Steps :
 ---------------------
-1) Navigate to maven project folder ('tc-informix-data-export'). Do `mvn package assembly:single` to build fat jar
-2) Navigate to target folder, there you can see `tc-informix-data-export-0.1-jar-with-dependencies.jar` generated
-3) Create a file `config.properties` with following contents
+
+
+
+1. Navigate to maven project folder ('tc-informix-data-export'). Do `mvn package assembly:single` to build fat jar
+2. Navigate to target folder, there you can see `tc-informix-data-export-0.1-jar-with-dependencies.jar` generated
+3. Create a file `config.properties` with following contents
+
 ```
 sourceInformix.dbhost=<docker-ip>
 sourceInformix.dbport=<informix_port_1>
@@ -29,13 +33,13 @@ To run source docker informix instance, I would suggest to use
 
 `docker run -it -p <informix_port_1>:2021 appiriodevops/informix:1.2`
 
-4) Step 3 has the queries that will be executed (where data is to be transferred from)
+4. Step 3 has the queries that will be executed (where data is to be transferred from)
 	By default, upon launching
 	a) tcs_catalog.project_info
 		Has the data already.
 	b) informixoltp.invoice
 		Doesn't have any data. I would suggest to generate random data using DBSchema or else use
 		`informixoltp-invoice-testdata.sql` given in submission.zip to insert test data.
-5) Run jar now using
+5. Run jar now using
 	`java -jar tc-informix-data-export-0.1-jar-with-dependencies.jar <path_to_config.properties>`
 	This should read the tables in sourceInformix and store it in files as per fileName in dbname.table_to_csv.mappings and in directory as per config param config.csvTargetDirectory
