@@ -17,7 +17,7 @@ SELECT pm.create_date payment_date, null::int as contest_id,  ttc.name client,	t
             AND NOT pmd2.payment_status_id IN (65, 68, 69)), 0)
     ) as actual_total_member_costs,  pt.payment_type_desc,
     CASE WHEN pmd.payment_type_id in (69)  THEN 'Copilot'
-     WHEN pmd.payment_type_id in (68, 70, 71)  THEN 'Bugs'
+     WHEN pmd.payment_type_id in (67,68, 70, 71)  THEN 'Bugs'
      ELSE 'Misc' END as line_item_category,
     CASE WHEN pmd.payment_type_id in (68,69,70,71)
          THEN pmd.jira_issue_id ELSE ''  END as reference_id,
