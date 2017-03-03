@@ -1,4 +1,16 @@
 ---------------------
+Overview:
+---------------------
+This utility is a loader that pumps challenge cost data at the line item level from Informix to Redshift. It currently loads the cost_transaction table in Redshift. In terms of data, it mirrors what the "Competition Costs" report (https://www.topcoder.com/direct/dashboardBillingCostReport.action) does in Topcoder Direct. 
+
+This loader can be expanded to perform additional loads.  It can be more generically thought of as a loader from a database to S3 to Reshift.
+
+SQLDB --> S3 --> COPY to Redshift
+
+This loader will always do a full load each time. 
+
+
+---------------------
 PreRequisites:
 ---------------------
 Maven
