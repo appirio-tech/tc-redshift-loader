@@ -15,9 +15,12 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Objects;
 import java.util.Properties;
 
 import com.opencsv.CSVWriter;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Handles data export from database
@@ -25,6 +28,7 @@ import com.opencsv.CSVWriter;
  * @author TCSASSEMBLER
  */
 public class InformixDataExport {
+    private static final Logger logger = LogManager.getLogger(InformixDataExport.class);
 
     /**
      * Extracts data from database based on a provided query
@@ -38,22 +42,26 @@ public class InformixDataExport {
      */
     public static void informixExtractData(final DBInterface informixDbInterface, final String query,
                                            final char csvSeparator, final String targetFileName, boolean includeColumns) throws Exception {
-        InformixDBConnect informixDBConnect = new InformixDBConnect(informixDbInterface);
-        try (Connection conn = informixDBConnect.getNewConnection(); Statement stmt = conn.createStatement()) {
-            System.out.println("Default fetch size: " + stmt.getFetchSize());
+        try (InformixDBConnect informixDBConnect = new InformixDBConnect(informixDbInterface);
+             Connection conn = informixDBConnect.getNewConnection(); Statement stmt = conn.createStatement()) {
+            logger.info("Default fetch size: {}", stmt.getFetchSize());
             conn.setNetworkTimeout(null, 0);
             stmt.setFetchSize(1000);
-            System.out.println("Updated default fetch size to 1000");
+            logger.info("Updated default fetch size to 1000");
             try (ResultSet res = stmt.executeQuery(query); CSVWriter writer = new CSVWriter(new FileWriter(targetFileName, true), csvSeparator)) {
-                System.out.println("Query execution completed.");
+                logger.info("Query execution completed.");
                 writer.writeAll(res, includeColumns);
-                System.out.println("Extracted data to file : " + targetFileName);
+                logger.info("Extracted data to file : " + targetFileName);
             } catch (SQLException e) {
                 e.printStackTrace();
             }
         } catch (SQLException e) {
             e.printStackTrace();
         }
+    }
+
+    public static void informixExtractDataInBatch(final DBInterface informixDBInterface, String query, final char csvSeparator, final String targetFileName, boolean includeColumns) throws Exception {
+
     }
 
     /**
@@ -63,13 +71,16 @@ public class InformixDataExport {
      */
     public static void exportData(final Properties prop) {
         String sourceInformixDbHost = prop.getProperty("sourceInformix.dbhost");
-        Integer sourceInformixDbPort = Integer.parseInt(prop.getProperty("sourceInformix.dbport"));
+        int sourceInformixDbPort = Integer.parseInt(prop.getProperty("sourceInformix.dbport"));
         String sourceInformixDbName = prop.getProperty("sourceInformix.dbname");
         String sourceInformixDbUser = prop.getProperty("sourceInformix.dbuser");
         String sourceInformixDbPass = prop.getProperty("sourceInformix.dbpass");
         String sourceInformixDbServer = prop.getProperty("sourceInformix.dbserver");
-        Character csvSeparator = prop.getProperty("config.csvSeparator").charAt(0);
+
+        char csvSeparator = prop.getProperty("config.csvSeparator").charAt(0);
         boolean singleOutput = "true".equals(prop.getProperty("config.singleOutput"));
+        boolean processInBatch = "true".equals(prop.getProperty("config.processInBatch"));
+
         String outputFilename = prop.getProperty("config.outputFilename", "out");
 
         String queriesDirPath = prop.getProperty("config.queriesDir");
@@ -77,22 +88,29 @@ public class InformixDataExport {
 
         File queriesDir = new File(queriesDirPath);
         int i = 0;
-        for (final File fileEntry : queriesDir.listFiles()) {
+        for (final File fileEntry : Objects.requireNonNull(queriesDir.listFiles())) {
 
             String targetCsvFileName = outputFilename;
             if (!singleOutput) {
                 targetCsvFileName = fileEntry.getName() + ".csv";
             }
 
-            System.out.println("Processing query : " + fileEntry.getName());
+            logger.info("Processing query: {}", fileEntry.getName());
 
-            DBInterface sourceInformixDbInterface = new DBInterface(sourceInformixDbName, sourceInformixDbHost,
-                    sourceInformixDbServer, sourceInformixDbUser, sourceInformixDbPass, sourceInformixDbPort);
+            DBInterface sourceInformixDbInterface = new DBInterface(
+                    sourceInformixDbName, sourceInformixDbHost,
+                    sourceInformixDbServer, sourceInformixDbUser, sourceInformixDbPass, sourceInformixDbPort
+            );
+
             try {
                 String query = readFile(fileEntry.getAbsolutePath(), Charset.defaultCharset());
-                InformixDataExport.informixExtractData(sourceInformixDbInterface, query, csvSeparator, csvTargetDirectory + "/" + targetCsvFileName, i == 0 || !singleOutput);
+                if (!processInBatch) {
+                    InformixDataExport.informixExtractData(sourceInformixDbInterface, query, csvSeparator, csvTargetDirectory + "/" + targetCsvFileName, i == 0 || !singleOutput);
+                } else {
+                    InformixDataExport.informixExtractDataInBatch(sourceInformixDbInterface, query, csvSeparator, csvTargetDirectory + "/" + targetCsvFileName, i == 0 || !singleOutput);
+                }
             } catch (Exception e) {
-                System.out.println(e.getMessage());
+                logger.error(e.getMessage());
                 e.printStackTrace();
             }
             i++;
@@ -121,7 +139,7 @@ public class InformixDataExport {
      */
     public static void main(final String[] args) throws Exception {
         if (args.length < 1) {
-            System.out.println("Please provide config.properties file path as parameter");
+            logger.error("Please provide config.properties file path as parameter");
         } else {
             Properties prop = new Properties();
             InputStream input = null;

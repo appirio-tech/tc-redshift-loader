@@ -4,6 +4,8 @@
 package com.topcoder;
 
 import com.informix.jdbcx.IfxConnectionPoolDataSource;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import javax.sql.PooledConnection;
 import java.sql.Connection;
@@ -13,7 +15,9 @@ import java.sql.DriverManager;
  * HAndles Informix connections
  */
 public class InformixDBConnect implements DBConnect, AutoCloseable {
-	private PooledConnection pooledConnection;
+	private static final Logger logger = LogManager.getLogger(InformixDBConnect.class);
+
+	private final PooledConnection pooledConnection;
 
 	/**
 	 * Default constructor
@@ -53,7 +57,7 @@ public class InformixDBConnect implements DBConnect, AutoCloseable {
 
 	@Override
 	public void close() throws Exception {
-		System.out.println("Closing connection");
+		logger.info("Closing connection");
 		if (pooledConnection != null) {
 			pooledConnection.close();
 		}
