@@ -17,17 +17,4 @@ public interface DBConnect {
 	 */
 	public Connection getNewConnection() throws Exception;
 
-	/**
-	 * Create db url from configuration parameters
-	 * @param dbInterface -the configuration
-	 * @return jdbc url
-	 */
-	public String formJDBCUrl(DBInterface dbInterface);
-
-	/**
-	 * Register db driver
-	 * @throws Exception
-	 */
-	public void registerDriver() throws Exception;
-
 }

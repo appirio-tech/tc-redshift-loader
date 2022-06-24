@@ -3,23 +3,17 @@
  */
 package com.topcoder;
 
+import com.informix.jdbcx.IfxConnectionPoolDataSource;
+
+import javax.sql.PooledConnection;
 import java.sql.Connection;
 import java.sql.DriverManager;
 
 /**
  * HAndles Informix connections
  */
-public class InformixDBConnect implements DBConnect {
-
-	/**
-	 * Driver name
-	 */
-	static String DRIVER_CLASS = "com.informix.jdbc.IfxDriver";
-
-	/**
-	 * JDBC url
-	 */
-	static String JDBC_URL;
+public class InformixDBConnect implements DBConnect, AutoCloseable {
+	private PooledConnection pooledConnection;
 
 	/**
 	 * Default constructor
@@ -27,8 +21,20 @@ public class InformixDBConnect implements DBConnect {
 	 * @throws Exception if any error occurs
 	 */
 	public InformixDBConnect(DBInterface dbInterface) throws Exception {
-		JDBC_URL = formJDBCUrl(dbInterface);
-		registerDriver();
+		IfxConnectionPoolDataSource cpds = new IfxConnectionPoolDataSource();
+
+		cpds.setIfxIFXHOST(dbInterface.getEndPoint());
+		cpds.setPortNumber(dbInterface.getPort());
+		cpds.setServerName(dbInterface.getServer());
+		cpds.setDatabaseName(dbInterface.getName());
+		cpds.setUser(dbInterface.getUsername());
+		cpds.setPassword(dbInterface.getPassword());
+
+		cpds.setMinPoolSize(1);
+		cpds.setMaxPoolSize(10);
+//		cpds.setMaxIdleTime(0);
+
+		pooledConnection = cpds.getPooledConnection();
 	}
 
 	/**
@@ -38,35 +44,18 @@ public class InformixDBConnect implements DBConnect {
 	 */
 	@Override
 	public Connection getNewConnection() throws Exception {
-		Connection conn = DriverManager.getConnection(JDBC_URL);
-		return conn;
+		Connection connection = pooledConnection.getConnection();
+		connection.setReadOnly(true);
+
+		return connection;
 	}
 
-	/**
-	 * Creates JDBC url
-	 * @param dbInterface -the configuration
-	 * @return jdbc url
-	 */
-	@Override
-	public String formJDBCUrl(DBInterface dbInterface) {
-		return String.format("jdbc:informix-sqli://%s:%d/%s:INFORMIXSERVER=%s;user=%s;password=%s", dbInterface.getEndPoint(),dbInterface.getPort(),dbInterface.getName(),dbInterface.getServer(),dbInterface.getUsername(),dbInterface.getPassword());
-	}
 
-	/**
-	 * Registers driver
-	 * @throws Exception if any error occurs
-	 */
 	@Override
-	public void registerDriver() throws Exception {
-		try {
-			Class.forName(DRIVER_CLASS);
-		} catch (Exception ex) {
-			throw new Exception("ERROR: failed to load Informix JDBC driver.",ex);
+	public void close() throws Exception {
+		System.out.println("Closing connection");
+		if (pooledConnection != null) {
+			pooledConnection.close();
 		}
-		try {
-			DriverManager.registerDriver((com.informix.jdbc.IfxDriver) Class.forName(DRIVER_CLASS).newInstance());
-		} catch (Exception ex) {
-			throw new Exception("Driver is not Registered",ex);
-		}		
 	}
 }
