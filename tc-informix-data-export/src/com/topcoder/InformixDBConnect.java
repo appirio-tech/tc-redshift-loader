@@ -48,8 +48,10 @@ public class InformixDBConnect implements DBConnect, AutoCloseable {
 	 */
 	@Override
 	public Connection getNewConnection() throws Exception {
+		logger.info("Generating a new connection...");
 		Connection connection = pooledConnection.getConnection();
 		connection.setReadOnly(true);
+		connection.setAutoCommit(true);
 
 		return connection;
 	}
