@@ -14,6 +14,7 @@ import java.nio.file.Paths;
 import java.sql.*;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.Objects;
 import java.util.Properties;
 
@@ -31,6 +32,8 @@ import org.apache.logging.log4j.core.config.LoggerConfig;
  * @author TCSASSEMBLER
  */
 public class InformixDataExport {
+    private static final String DATE_FORMAT = "yyyy-MM-dd HH:mm:ss";
+
     // TODO: Get from config
     static {
         LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
@@ -91,7 +94,7 @@ public class InformixDataExport {
                 statement.setString(1, dt);
                 statement.setString(3, dt);
 
-                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                SimpleDateFormat sdf = new SimpleDateFormat(DATE_FORMAT);
                 Calendar c = Calendar.getInstance();
                 c.setTime(sdf.parse(dt));
                 c.add(Calendar.DATE, incrementBy);  // number of days to add
@@ -177,7 +180,7 @@ public class InformixDataExport {
                     InformixDataExport.informixExtractData(sourceInformixDbInterface, query, csvSeparator, csvTargetDirectory + "/" + targetCsvFileName, i == 0 || !singleOutput);
                 } else {
                     String startDate = prop.getProperty("config.startDate", "2020-01-01 00:00:00");
-                    String endDate = prop.getProperty("config.endDate", "2020-02-02 00:00:00");
+                    String endDate = prop.getProperty("config.endDate", tomorrow());
                     int numDaysToIncrementBy = Integer.parseInt(prop.getProperty("config.numDaysToIncrementBy", "5"));
                     InformixDataExport.informixExtractDataInBatch(
                             sourceInformixDbInterface, query, csvSeparator, csvTargetDirectory + "/" + targetCsvFileName,
@@ -235,5 +238,20 @@ public class InformixDataExport {
                 }
             }
         }
+    }
+
+    /**
+     * Get the next date
+     *
+     * @return tomorrow's date in the format yyyy-MM-dd HH:mm:00
+     */
+    private static String tomorrow() {
+        Calendar c = Calendar.getInstance();
+        c.setTime(new Date());
+        c.add(Calendar.DATE, 1);  // number of days to add
+
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd 00:00:00");
+
+        return sdf.format(c.getTime());
     }
 }
