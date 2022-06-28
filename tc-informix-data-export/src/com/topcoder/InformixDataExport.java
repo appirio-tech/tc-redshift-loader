@@ -18,6 +18,7 @@ import java.util.Date;
 import java.util.Objects;
 import java.util.Properties;
 
+import com.informix.jdbc.IfmxPreparedStatement;
 import com.opencsv.CSVWriter;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -42,6 +43,7 @@ public class InformixDataExport {
         loggerConfig.setLevel(Level.ALL);
         ctx.updateLoggers();
     }
+
     private static final Logger logger = LogManager.getLogger(InformixDataExport.class);
 
     /**
@@ -54,10 +56,8 @@ public class InformixDataExport {
      * @param includeColumns      weather to include header row or not
      * @throws Exception if any error occurs
      */
-    public static void informixExtractData(final DBInterface informixDbInterface, final String query,
-                                           final char csvSeparator, final String targetFileName, boolean includeColumns) throws Exception {
-        try (InformixDBConnect informixDBConnect = new InformixDBConnect(informixDbInterface);
-             Connection conn = informixDBConnect.getNewConnection(); Statement stmt = conn.createStatement()) {
+    public static void informixExtractData(final DBInterface informixDbInterface, final String query, final char csvSeparator, final String targetFileName, boolean includeColumns) throws Exception {
+        try (InformixDBConnect informixDBConnect = new InformixDBConnect(informixDbInterface); Connection conn = informixDBConnect.getNewConnection(); Statement stmt = conn.createStatement()) {
             logger.info("Default fetch size: {}", stmt.getFetchSize());
             conn.setNetworkTimeout(null, 0);
             stmt.setFetchSize(1000);
@@ -81,18 +81,25 @@ public class InformixDataExport {
 
         try (InformixDBConnect dbConnect = new InformixDBConnect(informixDBInterface); Connection connection = dbConnect.getNewConnection()) {
             logger.info("Connected to database...");
-            PreparedStatement statement = connection.prepareStatement(query);
-            statement.setFetchSize(fetchSize);
+            final long countReplacements = query.chars().filter(ch -> ch == '?').count();
+            logger.info("Query requires {} replacements.", countReplacements);
+            IfmxPreparedStatement statement = (IfmxPreparedStatement) connection.prepareStatement(query);
+//            statement.setFetchSize(fetchSize);
 
             String dt = startDate;
             boolean done = false;
             boolean first = true;
-            while(!done) {
+            while (!done) {
                 long queryTimeStart = System.currentTimeMillis();
 
                 logger.info("Start Date: {}", dt);
-                statement.setString(1, dt);
-                statement.setString(3, dt);
+                if (countReplacements >= 1) {
+                    statement.setString(1, dt);
+                }
+
+                if (countReplacements >= 3) {
+                    statement.setString(3, dt);
+                }
 
                 SimpleDateFormat sdf = new SimpleDateFormat(DATE_FORMAT);
                 Calendar c = Calendar.getInstance();
@@ -106,11 +113,16 @@ public class InformixDataExport {
                     done = true;
                 }
                 logger.info("End Date: {}", dt);
-                statement.setString(2, dt);
-                statement.setString(4, dt);
 
-                try (ResultSet res = statement.executeQuery();
-                     CSVWriter writer = new CSVWriter(new FileWriter(targetFileName, !first), csvSeparator)) {
+                if (countReplacements >= 2) {
+                    statement.setString(2, dt);
+                }
+
+                if (countReplacements >= 4) {
+                    statement.setString(4, dt);
+                }
+
+                try (ResultSet res = statement.executeQuery(false, true); CSVWriter writer = new CSVWriter(new FileWriter(targetFileName, !first), csvSeparator)) {
                     long queryEndTime = System.currentTimeMillis();
                     logger.info("Query completed...writing to CSV. Append: {}. Execution time in seconds: {}", !first, (queryEndTime - queryTimeStart) / 1000);
                     writer.writeAll(res, first);
@@ -167,10 +179,7 @@ public class InformixDataExport {
             String targetCsvFileName = fileEntry.getName() + ".csv";
             logger.info("Results will be written to file {}", targetCsvFileName);
             logger.info("Connect to database");
-            DBInterface sourceInformixDbInterface = new DBInterface(
-                    sourceInformixDbName, sourceInformixDbHost,
-                    sourceInformixDbServer, sourceInformixDbUser, sourceInformixDbPass, sourceInformixDbPort
-            );
+            DBInterface sourceInformixDbInterface = new DBInterface(sourceInformixDbName, sourceInformixDbHost, sourceInformixDbServer, sourceInformixDbUser, sourceInformixDbPass, sourceInformixDbPort);
 
             logger.info("Processing query: {}", fileEntry.getName());
             try {
@@ -182,10 +191,7 @@ public class InformixDataExport {
                     String startDate = prop.getProperty("config.startDate", "2020-01-01 00:00:00");
                     String endDate = prop.getProperty("config.endDate", tomorrow());
                     int numDaysToIncrementBy = Integer.parseInt(prop.getProperty("config.numDaysToIncrementBy", "5"));
-                    InformixDataExport.informixExtractDataInBatch(
-                            sourceInformixDbInterface, query, csvSeparator, csvTargetDirectory + "/" + targetCsvFileName,
-                            Integer.parseInt(prop.getProperty("config.fetchSize", String.valueOf(Integer.MAX_VALUE))), startDate, endDate, numDaysToIncrementBy
-                    );
+                    InformixDataExport.informixExtractDataInBatch(sourceInformixDbInterface, query, csvSeparator, csvTargetDirectory + "/" + targetCsvFileName, Integer.parseInt(prop.getProperty("config.fetchSize", String.valueOf(Integer.MAX_VALUE))), startDate, endDate, numDaysToIncrementBy);
                 }
             } catch (Exception e) {
                 logger.error(e.getMessage());
@@ -203,8 +209,7 @@ public class InformixDataExport {
      * @return file contents
      * @throws IOException if error occurs
      */
-    private static String readFile(String path, Charset encoding)
-            throws IOException {
+    private static String readFile(String path, Charset encoding) throws IOException {
         byte[] encoded = Files.readAllBytes(Paths.get(path));
         return new String(encoded, encoding);
     }
@@ -219,6 +224,7 @@ public class InformixDataExport {
         if (args.length < 1) {
             logger.error("Please provide config.properties file path as parameter");
         } else {
+            final long processStartTime = System.currentTimeMillis();
             Properties prop = new Properties();
             InputStream input = null;
             try {
@@ -237,6 +243,9 @@ public class InformixDataExport {
                     }
                 }
             }
+
+            final long processEndTime = System.currentTimeMillis();
+            logger.info("Process completed in {} seconds", (processEndTime - processStartTime) / 1000);
         }
     }
 
