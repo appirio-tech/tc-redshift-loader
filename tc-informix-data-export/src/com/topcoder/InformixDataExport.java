@@ -93,6 +93,14 @@ public class InformixDataExport {
                 long queryTimeStart = System.currentTimeMillis();
 
                 logger.info("Start Date: {}", dt);
+
+                // Not all queries require "?" substitution - for such queries we get all the results in one go
+                // and break out of the loop
+                if (countReplacements == 0) {
+                    done = true;
+                    logger.info("No date replacements required. Will get all data in one go.");
+                }
+
                 if (countReplacements >= 1) {
                     statement.setString(1, dt);
                 }
